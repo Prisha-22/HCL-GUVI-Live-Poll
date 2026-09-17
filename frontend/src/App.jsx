@@ -8,7 +8,7 @@ import {
 } from "react-router-dom";
 import { useEffect, useState } from "react";
 
-const API_URL = "http://localhost:8080";
+const API_URL = "https://hcl-guvi-live-poll.onrender.com";
 
 function Login() {
   const navigate = useNavigate();
@@ -337,7 +337,7 @@ function PollPage() {
 
   useEffect(() => {
     const ws = new WebSocket(
-      `ws://localhost:8080/ws/polls/${id}`
+      `wss://hcl-guvi-live-poll.onrender.com/ws/polls/${id}`
     );
 
     ws.onopen = () => {
