@@ -230,13 +230,17 @@ func votePoll(c *gin.Context) {
 
 		voterID = bson.NewObjectID().Hex()
 
+		secure := c.Request.TLS != nil
+
+		c.SetSameSite(http.SameSiteNoneMode)
+
 		c.SetCookie(
 			"voter_id",
 			voterID,
 			60*60*24*365,
 			"/",
 			"",
-			false,
+			secure,
 			true,
 		)
 	}
