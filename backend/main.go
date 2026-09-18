@@ -104,7 +104,12 @@ func main() {
 			"https://hcl-guvi-live-poll-frontend.onrender.com",
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Authorization",
+			"X-Voter-ID",
+		},
 		AllowCredentials: true,
 	}))
 

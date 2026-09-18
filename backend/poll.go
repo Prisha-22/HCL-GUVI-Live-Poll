@@ -269,14 +269,14 @@ func getVoteStatus(c *gin.Context) {
 	}
 
 	// Get the voter ID stored in the browser cookie.
-	voterID, err := c.Cookie("voter_id")
+	voterID := c.GetHeader("X-Voter-ID")
 
-	// If there is no voter ID, this browser has not voted yet.
-	if err != nil || voterID == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"voted": false,
-		})
-		return
+	if voterID == "" {
+		voterID, err = c.Cookie("voter_id")
+		if err != nil || voterID == "" {
+			c.JSON(http.StatusOK, gin.H{"voted": false})
+			return
+		}
 	}
 
 	// Redis set containing voters who already voted in this poll.
@@ -346,26 +346,26 @@ func votePoll(c *gin.Context) {
 	}
 
 	// Get the voter ID stored in the browser cookie.
-	voterID, err := c.Cookie("voter_id")
+	voterID := c.GetHeader("X-Voter-ID")
 
-	// If the browser does not have a voter ID, create one.
-	if err != nil || voterID == "" {
+	if voterID == "" {
+		voterID, err = c.Cookie("voter_id")
+		if err != nil || voterID == "" {
+			voterID = bson.NewObjectID().Hex()
 
-		voterID = bson.NewObjectID().Hex()
+			secure := c.Request.TLS != nil
 
-		secure := c.Request.TLS != nil
-
-		c.SetSameSite(http.SameSiteNoneMode)
-
-		c.SetCookie(
-			"voter_id",
-			voterID,
-			60*60*24*365,
-			"/",
-			"",
-			secure,
-			true,
-		)
+			c.SetSameSite(http.SameSiteNoneMode)
+			c.SetCookie(
+				"voter_id",
+				voterID,
+				60*60*24*365,
+				"/",
+				"",
+				secure,
+				true,
+			)
+		}
 	}
 
 	// Redis set containing voters who already voted in this poll.

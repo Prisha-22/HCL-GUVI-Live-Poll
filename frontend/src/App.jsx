@@ -635,6 +635,17 @@ function PollPage() {
   const [error, setError] = useState("");
   const [voted, setVoted] = useState(false);
 
+    const getVoterId = () => {
+    let voterId = localStorage.getItem("livepoll_voter_id");
+
+    if (!voterId) {
+      voterId = crypto.randomUUID();
+      localStorage.setItem("livepoll_voter_id", voterId);
+    }
+
+    return voterId;
+  };
+
   /* =========================
      CHECK VOTE STATUS
   ========================= */
@@ -643,6 +654,9 @@ function PollPage() {
 
     fetch(`${API_URL}/polls/${id}/vote-status`, {
       credentials: "include",
+      headers: {
+        "X-Voter-ID": getVoterId(),
+      },
     })
       .then((response) => response.json())
       .then((data) => {
@@ -910,8 +924,8 @@ function PollPage() {
           credentials: "include",
 
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
+            "X-Voter-ID": getVoterId(),
           },
 
           body: JSON.stringify({
