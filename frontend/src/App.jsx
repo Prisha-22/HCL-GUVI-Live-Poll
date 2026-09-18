@@ -23,7 +23,7 @@ function Login() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   const submit = async () => {
     setError("");
     setMessage("");
@@ -79,7 +79,9 @@ function Login() {
 
         <div className="login-logo">
           <div className="brand-icon">⚡</div>
+
           <h1>LivePoll</h1>
+
           <p className="subtitle">
             Create interactive polls and watch results update live.
           </p>
@@ -120,9 +122,17 @@ function Login() {
             }}
           />
 
-          {error && <p className="error">{error}</p>}
+          {error && (
+            <p className="error">
+              {error}
+            </p>
+          )}
 
-          {message && <p className="success">{message}</p>}
+          {message && (
+            <p className="success">
+              {message}
+            </p>
+          )}
 
           <button
             className="create-button"
@@ -164,6 +174,7 @@ function Home() {
 
   const [question, setQuestion] = useState("");
   const [options, setOptions] = useState(["", ""]);
+  const [expiresAt, setExpiresAt] = useState("");
   const [createdPoll, setCreatedPoll] = useState(null);
 
   const [myPolls, setMyPolls] = useState([]);
@@ -266,6 +277,23 @@ function Home() {
       return;
     }
 
+    if (!expiresAt) {
+      setError("Please select an expiry date and time.");
+      return;
+    }
+
+    const expiryDate = new Date(expiresAt);
+
+    if (isNaN(expiryDate.getTime())) {
+      setError("Please select a valid expiry date and time.");
+      return;
+    }
+
+    if (expiryDate <= new Date()) {
+      setError("Expiry date and time must be in the future.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -278,6 +306,7 @@ function Home() {
         body: JSON.stringify({
           question: cleanQuestion,
           options: cleanOptions,
+          expiresAt: expiryDate.toISOString(),
         }),
       });
 
@@ -302,6 +331,7 @@ function Home() {
 
       setQuestion("");
       setOptions(["", ""]);
+      setExpiresAt("");
 
     } catch (error) {
       setError("Could not connect to backend.");
@@ -332,6 +362,7 @@ function Home() {
 
   return (
     <div className="app">
+
       <div className="container">
 
         {/* =========================
@@ -339,12 +370,21 @@ function Home() {
         ========================= */}
 
         <div className="top-bar">
+
           <div className="brand">
-            <div className="brand-icon">⚡</div>
-            <span>LivePoll</span>
+
+            <div className="brand-icon">
+              ⚡
+            </div>
+
+            <span>
+              LivePoll
+            </span>
+
           </div>
 
           <div className="user-area">
+
             <span className="user-name">
               Welcome, <strong>{username}</strong>
             </span>
@@ -355,15 +395,20 @@ function Home() {
             >
               Logout
             </button>
+
           </div>
+
         </div>
+
         {/* =========================
             HERO
         ========================= */}
 
         <div className="hero">
 
-          <h1>Create. Share. Watch Live.</h1>
+          <h1>
+            Create. Share. Watch Live.
+          </h1>
 
           <p>
             Build interactive polls and watch your audience's
@@ -377,6 +422,7 @@ function Home() {
         ========================= */}
 
         {createdPoll && (
+
           <div className="created-card">
 
             <div className="created-icon">
@@ -423,6 +469,7 @@ function Home() {
             </div>
 
           </div>
+
         )}
 
         {/* =========================
@@ -431,13 +478,17 @@ function Home() {
 
         <div className="card">
 
-          <h2>Create a New Poll</h2>
+          <h2>
+            Create a New Poll
+          </h2>
 
           <p className="section-subtitle">
             Ask a question and add options for your audience.
           </p>
 
-          <label>Question</label>
+          <label>
+            Question
+          </label>
 
           <input
             type="text"
@@ -448,9 +499,24 @@ function Home() {
             }
           />
 
-          <label>Options</label>
+          <label>
+            Poll active until
+          </label>
+
+          <input
+            type="datetime-local"
+            value={expiresAt}
+            onChange={(e) =>
+              setExpiresAt(e.target.value)
+            }
+          />
+
+          <label>
+            Options
+          </label>
 
           {options.map((option, index) => (
+
             <input
               key={index}
               type="text"
@@ -463,6 +529,7 @@ function Home() {
                 )
               }
             />
+
           ))}
 
           <button
@@ -473,9 +540,11 @@ function Home() {
           </button>
 
           {error && (
+
             <p className="error">
               {error}
             </p>
+
           )}
 
           <button
@@ -499,18 +568,25 @@ function Home() {
           <div className="section-heading">
 
             <div>
-              <h2>My Polls</h2>
+
+              <h2>
+                My Polls
+              </h2>
 
               <p className="section-subtitle">
                 Open any poll to watch the results update live.
               </p>
+
             </div>
 
             <span className="poll-count">
+
               {myPolls.length}{" "}
+
               {myPolls.length === 1
                 ? "poll"
                 : "polls"}
+
             </span>
 
           </div>
@@ -518,7 +594,11 @@ function Home() {
           {pollsLoading ? (
 
             <div className="empty-state">
-              <p>Loading your polls...</p>
+
+              <p>
+                Loading your polls...
+              </p>
+
             </div>
 
           ) : myPolls.length === 0 ? (
@@ -553,21 +633,69 @@ function Home() {
 
                   <div className="poll-card-top">
 
-                    <span className="live-badge">
+                    {(() => {
 
-                      <span className="live-dot"></span>
+                      const expiry = poll.expiresAt
+                        ? new Date(poll.expiresAt).getTime()
+                        : NaN;
 
-                      LIVE
+                      const hasExpiry =
+                        !isNaN(expiry);
 
-                    </span>
+                      const isEnded =
+                        hasExpiry &&
+                        expiry <= Date.now();
 
-                    <span className="poll-date">
+                      return (
+
+                        <span
+                          className={
+                            !hasExpiry
+                              ? "live-badge no-expiry-badge"
+                              : isEnded
+                              ? "live-badge ended-badge"
+                              : "live-badge"
+                          }
+                        >
+
+                          <span className="live-dot"></span>
+
+                          {!hasExpiry
+                            ? "NO EXPIRY"
+                            : isEnded
+                            ? "ENDED"
+                            : "LIVE"}
+
+                        </span>
+
+                      );
+
+                    })()}
+
+                    <div className="poll-date">
+
                       {poll.createdAt
-                        ? new Date(
+                        ? `Created: ${new Date(
                             poll.createdAt
-                          ).toLocaleDateString()
+                          ).toLocaleString()}`
                         : ""}
-                    </span>
+
+                      <div>
+
+                        {poll.expiresAt &&
+                        !isNaN(
+                          new Date(
+                            poll.expiresAt
+                          ).getTime()
+                        )
+                          ? `Ends: ${new Date(
+                              poll.expiresAt
+                            ).toLocaleString()}`
+                          : "No expiry set"}
+
+                      </div>
+
+                    </div>
 
                   </div>
 
@@ -576,10 +704,13 @@ function Home() {
                   </h3>
 
                   <p className="poll-options">
+
                     {poll.options.length}{" "}
+
                     {poll.options.length === 1
                       ? "option"
                       : "options"}
+
                   </p>
 
                   <div className="poll-card-actions">
@@ -598,7 +729,9 @@ function Home() {
                     <button
                       className="copy-button"
                       onClick={() =>
-                        copyPollLink(poll.id)
+                        copyPollLink(
+                          poll.id
+                        )
                       }
                     >
                       📋 Copy Link
@@ -617,6 +750,7 @@ function Home() {
         </div>
 
       </div>
+
     </div>
   );
 }
@@ -629,18 +763,34 @@ function PollPage() {
   const { id } = useParams();
 
   const [poll, setPoll] = useState(null);
+
   const [selectedOption, setSelectedOption] =
     useState("");
 
   const [error, setError] = useState("");
-  const [voted, setVoted] = useState(false);
 
-    const getVoterId = () => {
-    let voterId = localStorage.getItem("livepoll_voter_id");
+  const [voted, setVoted] =
+    useState(false);
+
+  const [timeLeft, setTimeLeft] =
+    useState("");
+
+  const getVoterId = () => {
+
+    let voterId =
+      localStorage.getItem(
+        "livepoll_voter_id"
+      );
 
     if (!voterId) {
-      voterId = crypto.randomUUID();
-      localStorage.setItem("livepoll_voter_id", voterId);
+
+      voterId =
+        crypto.randomUUID();
+
+      localStorage.setItem(
+        "livepoll_voter_id",
+        voterId
+      );
     }
 
     return voterId;
@@ -652,13 +802,21 @@ function PollPage() {
 
   useEffect(() => {
 
-    fetch(`${API_URL}/polls/${id}/vote-status`, {
-      credentials: "include",
-      headers: {
-        "X-Voter-ID": getVoterId(),
-      },
-    })
-      .then((response) => response.json())
+    fetch(
+      `${API_URL}/polls/${id}/vote-status`,
+      {
+        credentials: "include",
+
+        headers: {
+          "X-Voter-ID": getVoterId(),
+        },
+      }
+    )
+
+      .then((response) =>
+        response.json()
+      )
+
       .then((data) => {
 
         if (data.voted) {
@@ -666,6 +824,7 @@ function PollPage() {
         }
 
       })
+
       .catch(() => {
 
         console.log(
@@ -676,13 +835,14 @@ function PollPage() {
 
   }, [id]);
 
-
   /* =========================
      WEBSOCKET
   ========================= */
 
   useEffect(() => {
+
     let ws;
+
     let reconnectTimer;
 
     let reconnectAttempts = 0;
@@ -702,6 +862,7 @@ function PollPage() {
         );
 
         reconnectAttempts = 0;
+
       };
 
       ws.onmessage = (event) => {
@@ -718,15 +879,20 @@ function PollPage() {
             }
 
             return {
+
               ...currentPoll,
 
               votes: {
+
                 ...currentPoll.votes,
 
                 [update.option]:
                   update.count,
+
               },
+
             };
+
           });
 
         } catch (error) {
@@ -736,6 +902,7 @@ function PollPage() {
           );
 
         }
+
       };
 
       ws.onerror = () => {
@@ -758,14 +925,15 @@ function PollPage() {
 
         reconnectAttempts++;
 
-        const delay = Math.min(
-          1000 *
-            Math.pow(
-              2,
-              reconnectAttempts - 1
-            ),
-          10000
-        );
+        const delay =
+          Math.min(
+            1000 *
+              Math.pow(
+                2,
+                reconnectAttempts - 1
+              ),
+            10000
+          );
 
         console.log(
           `Reconnecting WebSocket in ${
@@ -775,9 +943,13 @@ function PollPage() {
 
         reconnectTimer =
           setTimeout(() => {
+
             connectWebSocket();
+
           }, delay);
+
       };
+
     };
 
     connectWebSocket();
@@ -793,6 +965,7 @@ function PollPage() {
       if (ws) {
         ws.close();
       }
+
     };
 
   }, [id]);
@@ -803,7 +976,9 @@ function PollPage() {
 
   useEffect(() => {
 
-    fetch(`${API_URL}/polls/${id}`)
+    fetch(
+      `${API_URL}/polls/${id}`
+    )
 
       .then((response) =>
         response.json()
@@ -835,12 +1010,84 @@ function PollPage() {
   }, [id]);
 
   /* =========================
+     COUNTDOWN
+  ========================= */
+
+  useEffect(() => {
+
+    if (!poll?.expiresAt) {
+      return;
+    }
+
+    const updateCountdown = () => {
+
+      const now =
+        new Date().getTime();
+
+      const expiry =
+        new Date(
+          poll.expiresAt
+        ).getTime();
+
+      const difference =
+        expiry - now;
+
+      if (difference <= 0) {
+
+        setTimeLeft(
+          "Poll ended"
+        );
+
+        return;
+      }
+
+      const hours =
+        Math.floor(
+          difference /
+            (1000 * 60 * 60)
+        );
+
+      const minutes =
+        Math.floor(
+          (difference /
+            (1000 * 60)) %
+            60
+        );
+
+      const seconds =
+        Math.floor(
+          (difference /
+            1000) %
+            60
+        );
+
+      setTimeLeft(
+        `${hours}h ${minutes}m ${seconds}s remaining`
+      );
+
+    };
+
+    updateCountdown();
+
+    const timer =
+      setInterval(
+        updateCountdown,
+        1000
+      );
+
+    return () =>
+      clearInterval(timer);
+
+  }, [poll?.expiresAt]);
+
+  /* =========================
      ERROR PAGE
   ========================= */
 
   if (error && !poll) {
 
     return (
+
       <div className="app">
 
         <div className="container">
@@ -869,6 +1116,7 @@ function PollPage() {
         </div>
 
       </div>
+
     );
   }
 
@@ -879,6 +1127,7 @@ function PollPage() {
   if (!poll) {
 
     return (
+
       <div className="app">
 
         <div className="container">
@@ -894,6 +1143,7 @@ function PollPage() {
         </div>
 
       </div>
+
     );
   }
 
@@ -916,24 +1166,29 @@ function PollPage() {
 
     try {
 
-      const response = await fetch(
-        `${API_URL}/polls/${id}/vote`,
-        {
-          method: "POST",
+      const response =
+        await fetch(
+          `${API_URL}/polls/${id}/vote`,
+          {
+            method: "POST",
 
-          credentials: "include",
+            credentials: "include",
 
-          headers: {
-            "Content-Type": "application/json",
-            "X-Voter-ID": getVoterId(),
-          },
+            headers: {
+              "Content-Type":
+                "application/json",
 
-          body: JSON.stringify({
-            option:
-              selectedOption,
-          }),
-        }
-      );
+              "X-Voter-ID":
+                getVoterId(),
+            },
+
+            body: JSON.stringify({
+              option:
+                selectedOption,
+            }),
+
+          }
+        );
 
       const data =
         await response.json();
@@ -957,6 +1212,7 @@ function PollPage() {
       );
 
     }
+
   };
 
   /* =========================
@@ -973,6 +1229,7 @@ function PollPage() {
     );
 
   return (
+
     <div className="app">
 
       <div className="container">
@@ -985,11 +1242,19 @@ function PollPage() {
 
           <div className="poll-live-header">
 
-            <span className="live-badge">
+            <span
+              className={
+                timeLeft === "Poll ended"
+                  ? "live-badge ended-badge"
+                  : "live-badge"
+              }
+            >
 
               <span className="live-dot"></span>
 
-              LIVE POLL
+              {timeLeft === "Poll ended"
+                ? "POLL ENDED"
+                : "LIVE POLL"}
 
             </span>
 
@@ -1002,13 +1267,22 @@ function PollPage() {
               as people vote.
             </p>
 
+            {timeLeft && (
+
+              <p className="section-subtitle">
+                ⏳ {timeLeft}
+              </p>
+
+            )}
+
           </div>
 
           {/* =========================
               VOTING
           ========================= */}
 
-          {!voted ? (
+          {!voted &&
+          timeLeft !== "Poll ended" ? (
 
             <>
 
@@ -1065,6 +1339,38 @@ function PollPage() {
 
             </>
 
+          ) : timeLeft === "Poll ended" ? (
+
+            /* =========================
+               STEP 4:
+               SEPARATE ENDED CARD
+            ========================= */
+
+            <div className="success-card ended-success-card">
+
+              <div className="created-icon ended-icon">
+                ⏱
+              </div>
+
+              <div>
+
+                <span className="created-label ended-label">
+                  POLL ENDED
+                </span>
+
+                <h2>
+                  Voting is closed
+                </h2>
+
+                <p>
+                  This poll has ended. You can still
+                  view the final results below.
+                </p>
+
+              </div>
+
+            </div>
+
           ) : (
 
             <div className="success-card">
@@ -1084,8 +1390,8 @@ function PollPage() {
                 </h2>
 
                 <p>
-                  Watch the results below
-                  update in real time.
+                  Watch the results below update
+                  in real time.
                 </p>
 
               </div>
@@ -1115,10 +1421,13 @@ function PollPage() {
             </div>
 
             <span className="poll-count">
+
               {totalVotes}{" "}
+
               {totalVotes === 1
                 ? "vote"
                 : "votes"}
+
             </span>
 
           </div>
@@ -1150,12 +1459,15 @@ function PollPage() {
                     </span>
 
                     <strong>
+
                       {count}{" "}
+
                       (
                       {percentage.toFixed(
                         0
                       )}
                       %)
+
                     </strong>
 
                   </div>
@@ -1165,7 +1477,8 @@ function PollPage() {
                     <div
                       className="result-fill"
                       style={{
-                        width: `${percentage}%`,
+                        width:
+                          `${percentage}%`,
                       }}
                     ></div>
 
@@ -1174,6 +1487,7 @@ function PollPage() {
                 </div>
 
               );
+
             }
           )}
 
@@ -1182,6 +1496,7 @@ function PollPage() {
       </div>
 
     </div>
+
   );
 }
 
@@ -1192,6 +1507,7 @@ function PollPage() {
 function App() {
 
   return (
+
     <BrowserRouter>
 
       <Routes>
@@ -1224,6 +1540,7 @@ function App() {
       </Routes>
 
     </BrowserRouter>
+
   );
 }
 

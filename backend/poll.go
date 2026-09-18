@@ -19,11 +19,13 @@ type Poll struct {
 	Votes     map[string]int `json:"votes" bson:"votes"`
 	CreatedBy string         `json:"createdBy" bson:"createdBy"`
 	CreatedAt time.Time      `json:"createdAt" bson:"createdAt"`
+	ExpiresAt time.Time      `json:"expiresAt" bson:"expiresAt"`
 }
 
 type CreatePollRequest struct {
-	Question string   `json:"question" binding:"required,min=3,max=200"`
-	Options  []string `json:"options" binding:"required,min=2,max=10"`
+	Question  string    `json:"question" binding:"required,min=3,max=200"`
+	Options   []string  `json:"options" binding:"required,min=2,max=10"`
+	ExpiresAt time.Time `json:"expiresAt" binding:"required"`
 }
 
 var pollCollection *mongo.Collection
@@ -39,10 +41,8 @@ func createPoll(c *gin.Context) {
 		return
 	}
 
-	// Remove extra spaces from the question.
 	request.Question = strings.TrimSpace(request.Question)
 
-	// Make sure the question is not empty.
 	if request.Question == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Question cannot be empty",
@@ -50,15 +50,12 @@ func createPoll(c *gin.Context) {
 		return
 	}
 
-	// Track options to prevent duplicates.
 	seen := make(map[string]bool)
 
 	for i := range request.Options {
 
-		// Remove extra spaces from each option.
 		request.Options[i] = strings.TrimSpace(request.Options[i])
 
-		// Option cannot be empty.
 		if request.Options[i] == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Options cannot be empty",
@@ -66,7 +63,6 @@ func createPoll(c *gin.Context) {
 			return
 		}
 
-		// Option cannot be longer than 100 characters.
 		if len(request.Options[i]) > 100 {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Each option must be 100 characters or less",
@@ -74,7 +70,6 @@ func createPoll(c *gin.Context) {
 			return
 		}
 
-		// Prevent MongoDB field-path problems.
 		if strings.Contains(request.Options[i], ".") ||
 			strings.HasPrefix(request.Options[i], "$") {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -83,7 +78,6 @@ func createPoll(c *gin.Context) {
 			return
 		}
 
-		// Prevent duplicate options.
 		if seen[request.Options[i]] {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "Duplicate options are not allowed",
@@ -92,6 +86,20 @@ func createPoll(c *gin.Context) {
 		}
 
 		seen[request.Options[i]] = true
+	}
+
+	if request.ExpiresAt.IsZero() {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Expiry date and time is required",
+		})
+		return
+	}
+
+	if !request.ExpiresAt.After(time.Now()) {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Expiry date and time must be in the future",
+		})
+		return
 	}
 
 	votes := make(map[string]int)
@@ -125,9 +133,13 @@ func createPoll(c *gin.Context) {
 		Votes:     votes,
 		CreatedBy: userIDString,
 		CreatedAt: time.Now(),
+		ExpiresAt: request.ExpiresAt,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
 	defer cancel()
 
 	_, err := pollCollection.InsertOne(ctx, poll)
@@ -139,7 +151,6 @@ func createPoll(c *gin.Context) {
 		return
 	}
 
-	// Initialize live vote counts in Redis.
 	redisKey := "poll:" + poll.ID.Hex() + ":votes"
 
 	for _, option := range poll.Options {
@@ -163,6 +174,7 @@ func createPoll(c *gin.Context) {
 }
 
 func getMyPolls(c *gin.Context) {
+
 	userID, exists := c.Get("userId")
 
 	if !exists {
@@ -232,12 +244,19 @@ func getPoll(c *gin.Context) {
 
 	var poll Poll
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
 	defer cancel()
 
-	err = pollCollection.FindOne(ctx, bson.M{"_id": pollID}).Decode(&poll)
+	err = pollCollection.FindOne(
+		ctx,
+		bson.M{"_id": pollID},
+	).Decode(&poll)
 
 	if err != nil {
+
 		if err == mongo.ErrNoDocuments {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "Poll not found",
@@ -254,7 +273,6 @@ func getPoll(c *gin.Context) {
 	c.JSON(http.StatusOK, poll)
 }
 
-
 func getVoteStatus(c *gin.Context) {
 
 	id := c.Param("id")
@@ -268,18 +286,19 @@ func getVoteStatus(c *gin.Context) {
 		return
 	}
 
-	// Get the voter ID stored in the browser cookie.
 	voterID := c.GetHeader("X-Voter-ID")
 
 	if voterID == "" {
 		voterID, err = c.Cookie("voter_id")
+
 		if err != nil || voterID == "" {
-			c.JSON(http.StatusOK, gin.H{"voted": false})
+			c.JSON(http.StatusOK, gin.H{
+				"voted": false,
+			})
 			return
 		}
 	}
 
-	// Redis set containing voters who already voted in this poll.
 	voterKey := "poll:" + pollID.Hex() + ":voters"
 
 	voted, err := redisClient.SIsMember(
@@ -300,8 +319,6 @@ func getVoteStatus(c *gin.Context) {
 	})
 }
 
-
-
 func votePoll(c *gin.Context) {
 
 	id := c.Param("id")
@@ -311,6 +328,44 @@ func votePoll(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid poll ID",
+		})
+		return
+	}
+
+	var poll Poll
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	err = pollCollection.FindOne(
+		ctx,
+		bson.M{"_id": pollID},
+	).Decode(&poll)
+
+	if err != nil {
+
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error": "Poll not found",
+			})
+			return
+		}
+
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Could not get poll",
+		})
+		return
+	}
+
+	// Check whether the poll has expired.
+	if !poll.ExpiresAt.IsZero() &&
+		!time.Now().Before(poll.ExpiresAt) {
+
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "This poll has ended",
 		})
 		return
 	}
@@ -326,7 +381,6 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	// Remove extra spaces from the selected option.
 	request.Option = strings.TrimSpace(request.Option)
 
 	if request.Option == "" {
@@ -336,26 +390,29 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	// Prevent MongoDB field-path problems during voting.
 	if strings.Contains(request.Option, ".") ||
 		strings.HasPrefix(request.Option, "$") {
+
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Invalid option",
 		})
 		return
 	}
 
-	// Get the voter ID stored in the browser cookie.
 	voterID := c.GetHeader("X-Voter-ID")
 
 	if voterID == "" {
+
 		voterID, err = c.Cookie("voter_id")
+
 		if err != nil || voterID == "" {
+
 			voterID = bson.NewObjectID().Hex()
 
 			secure := c.Request.TLS != nil
 
 			c.SetSameSite(http.SameSiteNoneMode)
+
 			c.SetCookie(
 				"voter_id",
 				voterID,
@@ -368,10 +425,8 @@ func votePoll(c *gin.Context) {
 		}
 	}
 
-	// Redis set containing voters who already voted in this poll.
 	voterKey := "poll:" + pollID.Hex() + ":voters"
 
-	// Check whether this voter has already voted.
 	exists, err := redisClient.SIsMember(
 		context.Background(),
 		voterKey,
@@ -385,7 +440,6 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	// Prevent the same browser from voting twice.
 	if exists {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "You have already voted in this poll",
@@ -394,12 +448,7 @@ func votePoll(c *gin.Context) {
 	}
 
 	// Record the vote in MongoDB.
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		5*time.Second,
-	)
-	defer cancel()
-
+	// We reuse the existing ctx created above.
 	result, err := pollCollection.UpdateOne(
 		ctx,
 		bson.M{
@@ -427,7 +476,7 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	// Update live vote count in Redis.
+	// Update the live vote count in Redis.
 	redisKey := "poll:" + pollID.Hex() + ":votes"
 
 	newCount, err := redisClient.HIncrBy(
@@ -444,9 +493,13 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("Redis live count:", request.Option, newCount)
+	fmt.Println(
+		"Redis live count:",
+		request.Option,
+		newCount,
+	)
 
-	// Mark this voter as having voted.
+	// Save voter ID in Redis to prevent duplicate voting.
 	err = redisClient.SAdd(
 		context.Background(),
 		voterKey,
@@ -460,7 +513,7 @@ func votePoll(c *gin.Context) {
 		return
 	}
 
-	// Publish live update to WebSocket clients.
+	// Publish live update through Redis Pub/Sub.
 	updateChannel := "poll:" + pollID.Hex() + ":updates"
 
 	err = redisClient.Publish(
