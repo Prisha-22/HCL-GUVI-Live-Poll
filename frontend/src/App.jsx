@@ -336,38 +336,81 @@ function PollPage() {
   const [voted, setVoted] = useState(false);
 
   useEffect(() => {
-    const ws = new WebSocket(
-      `wss://hcl-guvi-live-poll.onrender.com/ws/polls/${id}`
-    );
+    let ws;
+    let reconnectTimer;
+    let reconnectAttempts = 0;
+    let isClosing = false;
 
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
+    const connectWebSocket = () => {
+      ws = new WebSocket(
+        `wss://hcl-guvi-live-poll.onrender.com/ws/polls/${id}`
+      );
 
-    ws.onmessage = (event) => {
-      const update = JSON.parse(event.data);
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        reconnectAttempts = 0;
+      };
 
-      setPoll((currentPoll) => {
-        if (!currentPoll) {
-          return currentPoll;
+      ws.onmessage = (event) => {
+        try {
+          const update = JSON.parse(event.data);
+
+          setPoll((currentPoll) => {
+            if (!currentPoll) {
+              return currentPoll;
+            }
+
+            return {
+              ...currentPoll,
+              votes: {
+                ...currentPoll.votes,
+                [update.option]: update.count,
+              },
+            };
+          });
+        } catch (error) {
+          console.log("Invalid WebSocket message");
+        }
+      };
+
+      ws.onerror = () => {
+        console.log("WebSocket connection error");
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected");
+
+        if (isClosing) {
+          return;
         }
 
-        return {
-          ...currentPoll,
-          votes: {
-            ...currentPoll.votes,
-            [update.option]: update.count,
-          },
-        };
-      });
+        reconnectAttempts++;
+
+        const delay = Math.min(
+          1000 * Math.pow(2, reconnectAttempts - 1),
+          10000
+        );
+
+        console.log(
+          `Reconnecting WebSocket in ${delay / 1000} seconds...`
+        );
+
+        reconnectTimer = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
+      };
     };
 
-    ws.onerror = () => {
-      console.log("WebSocket connection error");
-    };
+    connectWebSocket();
 
     return () => {
-      ws.close();
+      isClosing = true;
+
+      clearTimeout(reconnectTimer);
+
+      if (ws) {
+        ws.close();
+      }
     };
   }, [id]);
 
@@ -421,18 +464,19 @@ function PollPage() {
     setError("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/polls/${id}/vote`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            option: selectedOption,
-          }),
-        }
-      );
+          const response = await fetch(
+      `${API_URL}/polls/${id}/vote`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          option: selectedOption,
+        }),
+      }
+    );
 
       const data = await response.json();
 
