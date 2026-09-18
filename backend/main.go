@@ -117,6 +117,9 @@ func main() {
 
 	// Poll APIs
 	router.POST("/polls", authMiddleware(), createPoll)
+
+	router.GET("/polls/mine", authMiddleware(), getMyPolls)
+
 	router.GET("/polls/:id", getPoll)
 	router.POST("/polls/:id/vote", votePoll)
 	router.GET("/ws/polls/:id", pollWebSocket)

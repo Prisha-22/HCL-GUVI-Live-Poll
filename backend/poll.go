@@ -17,6 +17,7 @@ type Poll struct {
 	Question  string         `json:"question" bson:"question"`
 	Options   []string       `json:"options" bson:"options"`
 	Votes     map[string]int `json:"votes" bson:"votes"`
+	CreatedBy string         `json:"createdBy" bson:"createdBy"`
 	CreatedAt time.Time      `json:"createdAt" bson:"createdAt"`
 }
 
@@ -99,11 +100,30 @@ func createPoll(c *gin.Context) {
 		votes[option] = 0
 	}
 
+	userID, exists := c.Get("userId")
+
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	userIDString, ok := userID.(string)
+
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid user information",
+		})
+		return
+	}
+
 	poll := Poll{
 		ID:        bson.NewObjectID(),
 		Question:  request.Question,
 		Options:   request.Options,
 		Votes:     votes,
+		CreatedBy: userIDString,
 		CreatedAt: time.Now(),
 	}
 
@@ -140,6 +160,61 @@ func createPoll(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, poll)
+}
+
+func getMyPolls(c *gin.Context) {
+	userID, exists := c.Get("userId")
+
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "User information not found",
+		})
+		return
+	}
+
+	userIDString, ok := userID.(string)
+
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error": "Invalid user information",
+		})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		5*time.Second,
+	)
+	defer cancel()
+
+	cursor, err := pollCollection.Find(
+		ctx,
+		bson.M{"createdBy": userIDString},
+	)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Could not get your polls",
+		})
+		return
+	}
+
+	defer cursor.Close(ctx)
+
+	var polls []Poll
+
+	if err := cursor.All(ctx, &polls); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Could not read your polls",
+		})
+		return
+	}
+
+	if polls == nil {
+		polls = []Poll{}
+	}
+
+	c.JSON(http.StatusOK, polls)
 }
 
 func getPoll(c *gin.Context) {
