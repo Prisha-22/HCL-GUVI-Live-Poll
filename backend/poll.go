@@ -254,6 +254,54 @@ func getPoll(c *gin.Context) {
 	c.JSON(http.StatusOK, poll)
 }
 
+
+func getVoteStatus(c *gin.Context) {
+
+	id := c.Param("id")
+
+	pollID, err := bson.ObjectIDFromHex(id)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid poll ID",
+		})
+		return
+	}
+
+	// Get the voter ID stored in the browser cookie.
+	voterID, err := c.Cookie("voter_id")
+
+	// If there is no voter ID, this browser has not voted yet.
+	if err != nil || voterID == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"voted": false,
+		})
+		return
+	}
+
+	// Redis set containing voters who already voted in this poll.
+	voterKey := "poll:" + pollID.Hex() + ":voters"
+
+	voted, err := redisClient.SIsMember(
+		context.Background(),
+		voterKey,
+		voterID,
+	).Result()
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Could not check vote status",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"voted": voted,
+	})
+}
+
+
+
 func votePoll(c *gin.Context) {
 
 	id := c.Param("id")

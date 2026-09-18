@@ -23,7 +23,7 @@ function Login() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
+  
   const submit = async () => {
     setError("");
     setMessage("");
@@ -634,6 +634,34 @@ function PollPage() {
 
   const [error, setError] = useState("");
   const [voted, setVoted] = useState(false);
+
+  /* =========================
+     CHECK VOTE STATUS
+  ========================= */
+
+  useEffect(() => {
+
+    fetch(`${API_URL}/polls/${id}/vote-status`, {
+      credentials: "include",
+    })
+      .then((response) => response.json())
+      .then((data) => {
+
+        if (data.voted) {
+          setVoted(true);
+        }
+
+      })
+      .catch(() => {
+
+        console.log(
+          "Could not check vote status"
+        );
+
+      });
+
+  }, [id]);
+
 
   /* =========================
      WEBSOCKET
