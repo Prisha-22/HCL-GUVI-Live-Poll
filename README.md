@@ -17,6 +17,7 @@ A real-time polling application where authenticated users can create polls, shar
 * Backend input validation
 * Share polls using a unique link
 * Public poll voting
+* Browser-based duplicate-vote protection
 * Real-time result updates without page refresh
 * Redis-based real-time vote counting
 * Redis Pub/Sub for live event communication
@@ -81,10 +82,10 @@ HCL-GUVI-Live-Poll/
 
 1. A user registers and logs in.
 2. The authenticated user creates a poll.
-3. The poll receives a unique link.
+3. The poll receives a unique ID and shareable link.
 4. The poll link can be shared with other users.
 5. Users open the link and vote.
-6. The vote is stored in MongoDB.
+6. The vote count is updated in MongoDB for persistent storage.
 7. Redis updates the live vote count.
 8. Redis Pub/Sub publishes the vote update.
 9. The Go WebSocket server sends the update to connected clients.
@@ -105,6 +106,14 @@ Validation includes:
 * Validation against invalid MongoDB field-path characters
 * Poll ID validation
 * Validation of selected voting options
+
+## Authentication
+
+Poll creation and poll management endpoints require authentication using JWT-based authentication.
+
+Unauthenticated users cannot access the protected poll creation functionality.
+
+Voting and viewing shared polls remain publicly accessible.
 
 ## Environment Variables
 
@@ -163,7 +172,7 @@ Go / Gin API
     ↓
 MongoDB
     ↓
-Redis
+Redis Live Vote Count
     ↓
 Redis Pub/Sub
     ↓
@@ -173,6 +182,8 @@ Connected Users
     ↓
 Live Results
 ```
+
+MongoDB provides persistent storage for polls and votes.
 
 Redis is used for live vote counting and Pub/Sub messaging, while WebSockets deliver vote updates to connected clients in real time.
 
@@ -198,24 +209,3 @@ AI assistance was used for:
 * Reviewing code and suggesting implementation improvements
 
 The application was tested and integrated manually, and the developer reviewed the implementation to understand the application's end-to-end flow.
-
-```
-
-### One small thing, bro
-
-Your current README says:
-
-> "The vote is stored in MongoDB → Redis updates..."
-
-That's okay for describing your current implementation.
-
-I **would not add** claims such as:
-
-> "Each user can vote only once"
-
-because we already tested that refreshing can bypass the current browser-based protection.
-
-So the README above stays accurate to what you've actually demonstrated. 👍
-
-After replacing the README, **save it and push it to GitHub**. Since this is only documentation, it won't affect your deployed application.
-```
